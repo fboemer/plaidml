@@ -131,8 +131,8 @@ TEST(CppEdsl, Cast) {
   {
     auto view = binder.output(B).mmap_current();
     ASSERT_THAT(view.size(), expected.size() * sizeof(expected[0]));
-    auto data = reinterpret_cast<std::int64_t*>(view.data());
-    std::vector<std::int64_t> actual(data, data + expected.size());
+    auto data = reinterpret_cast<std::uint32_t*>(view.data());
+    std::vector<std::uint32_t> actual(data, data + expected.size());
     EXPECT_THAT(actual, ContainerEq(expected));
   }
 }
