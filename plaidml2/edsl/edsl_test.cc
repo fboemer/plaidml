@@ -46,6 +46,79 @@ Tensor Softmax(const Tensor& X) {
   return E / N;
 }
 
+TEST(CppEdsl, ScalarNot) {
+  auto A = Placeholder(PLAIDML_DATA_INT64, {});
+  auto C = ~A;
+  Program program("not", {C});
+  std::vector<std::int64_t> input_a{1};
+  std::vector<std::int64_t> expected{~1};
+
+  auto binder = exec::Binder(program);
+  auto executable = binder.compile();
+  binder.input(A).copy_from(input_a.data());
+  executable->run();
+  {
+    auto view = binder.output(C).mmap_current();
+    ASSERT_THAT(view.size(), expected.size() * sizeof(expected[0]));
+    auto data = reinterpret_cast<std::int64_t*>(view.data());
+    std::vector<std::int64_t> actual(data, data + expected.size());
+    EXPECT_THAT(actual, ContainerEq(expected));
+  }
+}
+
+TEST(CppEdsl, ScalarAnd) {
+  auto A = Placeholder(PLAIDML_DATA_UINT64, {});
+  auto B = Placeholder(PLAIDML_DATA_UINT64, {});
+  auto C = A & B;
+  Program program("scalar_and", {C});
+  std::vector<std::uint64_t> input_a{1};
+  std::vector<std::uint64_t> input_b{1};
+  std::vector<std::uint64_t> expected{1};
+
+  auto binder = exec::Binder(program);
+  auto executable = binder.compile();
+  binder.input(A).copy_from(input_a.data());
+  binder.input(B).copy_from(input_b.data());
+  executable->run();
+  {
+    auto view = binder.output(C).mmap_current();
+    ASSERT_THAT(view.size(), expected.size() * sizeof(expected[0]));
+    auto data = reinterpret_cast<std::uint64_t*>(view.data());
+    std::vector<std::uint64_t> actual(data, data + expected.size());
+    EXPECT_THAT(actual, ContainerEq(expected));
+  }
+}
+
+TEST(CppEdsl, And) {
+  auto A = Placeholder(PLAIDML_DATA_UINT64, {3, 3});
+  auto B = Placeholder(PLAIDML_DATA_UINT64, {3, 3});
+  auto C = A & B;
+  Program program("and", {C});
+
+  std::vector<std::uint64_t> input_a{1, 2, 3,  //
+                                     4, 5, 6,  //
+                                     7, 8, 9};
+  std::vector<std::uint64_t> input_b{10, 11, 12,  //
+                                     13, 14, 15,  //
+                                     16, 17, 18};
+  std::vector<std::uint64_t> expected{1, 2, 3,  //
+                                      4, 5, 6,  //
+                                      7, 8, 9};
+
+  auto binder = exec::Binder(program);
+  auto executable = binder.compile();
+  binder.input(A).copy_from(input_a.data());
+  binder.input(B).copy_from(input_b.data());
+  executable->run();
+  {
+    auto view = binder.output(C).mmap_current();
+    ASSERT_THAT(view.size(), expected.size() * sizeof(expected[0]));
+    auto data = reinterpret_cast<std::uint64_t*>(view.data());
+    std::vector<std::uint64_t> actual(data, data + expected.size());
+    EXPECT_THAT(actual, ContainerEq(expected));
+  }
+}
+
 TEST(CppEdsl, Add) {
   auto A = Placeholder(PLAIDML_DATA_UINT64, {3, 3});
   auto B = Placeholder(PLAIDML_DATA_UINT64, {3, 3});
