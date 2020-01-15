@@ -86,6 +86,7 @@ struct TypeConverter : public mlir::TypeConverter {
       return type;
     }
     if (auto scalarType = type.dyn_cast<ScalarType>()) {
+      IVLOG(4, "  ScalarType");
       return scalarType.toStandard();
     }
     if (auto rankedTensorType = type.dyn_cast<RankedTensorType>()) {
@@ -140,6 +141,8 @@ struct FuncOpConversion : public OpConversionPattern<FuncOp> {
 
     // Finally cause the old func op to be erased
     rewriter.eraseOp(op);
+
+    IVLOG(1, "TOREMOVE FuncOpConversion success");
 
     return matchSuccess();
   }
