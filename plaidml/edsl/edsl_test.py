@@ -259,7 +259,7 @@ class TestEdsl(unittest.TestCase):
         self.assertMultiLineEqual(str(program).lstrip(), expected.lstrip())
 
     def test_cast(self):
-        I = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        I = Tensor(LogicalShape(plaidml.DType.UINT64, [1]))
         O = cast(I, DType.UINT32)
         program = Program('cast', [O])
         print('program', program)
@@ -267,13 +267,12 @@ class TestEdsl(unittest.TestCase):
             program,
             [(
                 I,
-                np.array([
-                    [1, 2, 3],  #
-                    [4, 5, 6 + (1 << 12)],  #
-                    [16777223, 2147483656, 4294967295]
+                np.array(
+                    [2147483648
                 ], dtype=plaidml.DType.UINT64.into_numpy()))])
-        self.assertEqual(outputs[0].tolist(), [[1, 2, 3], [4, 5, 6 + (1 << 12)], [16777223, 2147483656, 4294967295]])
+        self.assertEqual(outputs[0].tolist(), [2147483648])
 
+# 4294967295
     def test_sum_over_axis(self):
         I = Tensor(LogicalShape(plaidml.DType.FLOAT32, [1, 784]))
         O = sum_over_axis(I)

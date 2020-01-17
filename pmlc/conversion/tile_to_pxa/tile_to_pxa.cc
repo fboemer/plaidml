@@ -196,6 +196,8 @@ Value createCastOp(ConversionPatternRewriter& rewriter, Location loc, Value from
       return rewriter.create<mlir::SIToFPOp>(loc, from, intoType).getResult();
     }
   }
+  std::cout << "Creating cast op signed? " << std::endl;
+  std::cout << isSigned << std::endl;
   if (auto intoIntType = intoType.dyn_cast<IntegerType>()) {
     if (auto fromIntType = fromType.dyn_cast<IntegerType>()) {
       if (fromIntType.getWidth() < intoIntType.getWidth()) {
@@ -207,6 +209,9 @@ Value createCastOp(ConversionPatternRewriter& rewriter, Location loc, Value from
         return rewriter.create<mlir::ZeroExtendIOp>(loc, from, intoType).getResult();
       }
       // TruncateIOp: IntegerType -> narrower IntegerType
+      std::cout << "intoType " << std::endl;
+      intoType.dump();
+
       return rewriter.create<mlir::TruncateIOp>(loc, from, intoType).getResult();
     }
   }
