@@ -104,8 +104,8 @@ def complex_conv_2d(
     O = TensorOutput(N, Y0, Y1, G, GCO)
 
     # Compute the convolution
-    O[n, x0, x1, g, gco] += I[n, s0 * x1 + d0 * k0 - P0, s1 * x1 + d1 * k1 -
-                              P1, g, gci] * K[k0, k1, g, gci, gco]
+    O[n, x0, x1, g, gco] += I[n, s0 * x1 + d0 * k0 - P0, s1 * x1 + d1 * k1 - P1, g, gci] * K[
+        k0, k1, g, gci, gco]
     return O
 
 
@@ -257,6 +257,19 @@ class TestEdsl(unittest.TestCase):
 
     def compare_results(self, program, expected):
         self.assertMultiLineEqual(str(program).lstrip(), expected.lstrip())
+
+    def test_cast(self):
+            I = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+            O = cast(I, DType.UINT32)
+            program = Program('cast', [O])
+            outputs = plaidml.exec.run(program, [(I,
+            np.array([[1, 2, 3],
+                        [4, 5, 6],
+                        [7, 8, 9]]))])
+            self.assertEqual(outputs[0].tolist(),
+                        [[1, 2, 3],
+                      [4, 5, 6],
+                      [7, 8, 9]])
 
     def test_sum_over_axis(self):
         I = Tensor(LogicalShape(plaidml.DType.FLOAT32, [1, 784]))
@@ -872,8 +885,8 @@ module {
         K = Tensor(LogicalShape(plaidml.DType.FLOAT32, shape), name='K')
         n, x0, x1, c0, c1, co, ci, k0, k1 = TensorIndexes(9)
         O = TensorOutput(1, 5, 5, 1)
-        O[n, x0, x1, co] += (I[n, (x0 + k0 - 1) // 2,
-                               (x1 + k1 - 1) // 2, ci] * K[2 - k0, 2 - k1, co, ci])
+        O[n, x0, x1, co] += (I[n, (x0 + k0 - 1) // 2, (
+            x1 + k1 - 1) // 2, ci] * K[2 - k0, 2 - k1, co, ci])
         program = Program('defract_long', [O])
         expected = '''
 #map0 = (d0, d1, d2, d3, d4, d5, d6) -> (d0, d1, d2, d3)
@@ -903,15 +916,14 @@ module {
                 [[-1], [-2], [1]],
             ]])),
         ])
-        np.testing.assert_array_equal(
-            outputs[0],
-            np.array([[
-                [[0], [0], [0], [0], [0]],
-                [[0], [4], [12], [6], [24]],
-                [[0], [0], [0], [0], [0]],
-                [[6], [-3], [-6], [-3], [-12]],
-                [[0], [0], [0], [0], [0]],
-            ]]))
+        np.testing.assert_array_equal(outputs[0],
+                                      np.array([[
+                                          [[0], [0], [0], [0], [0]],
+                                          [[0], [4], [12], [6], [24]],
+                                          [[0], [0], [0], [0], [0]],
+                                          [[6], [-3], [-6], [-3], [-12]],
+                                          [[0], [0], [0], [0], [0]],
+                                      ]]))
 
     @unittest.skip('FIXME')
     def test_funky_names(self):
