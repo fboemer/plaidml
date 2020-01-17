@@ -49,10 +49,18 @@ class Executable(ForeignObject):
             target = plaidml.settings.get('PLAIDML_TARGET')
 
         def wrap(x, y):
+            print('wrapping ', x, ' to ', y)
             return ffi.new('plaidml_binding*', [x.as_ptr(), y.as_ptr()])
 
+        print('creating executable')
+
+        print("wrapping inputs")
         inputs = [wrap(x, y) for x, y in inputs]
+        print('inputs', inputs, ' size ', len(inputs))
+
+        print("wrapping outputs")
         outputs = [wrap(x, y) for x, y in outputs]
+        print('outputs', outputs, 'size ', len(outputs))
         ffi_obj = ffi_call(
             lib.plaidml_compile,
             program.as_ptr(),
@@ -66,6 +74,7 @@ class Executable(ForeignObject):
         super(Executable, self).__init__(ffi_obj)
 
     def run(self):
+        print('running executable')
         ffi_call(lib.plaidml_executable_run, self.as_ptr())
 
 

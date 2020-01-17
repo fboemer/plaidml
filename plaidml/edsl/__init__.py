@@ -329,6 +329,7 @@ class Tensor(ForeignObject):
                 raw_buffer = ffi.NULL
             else:
                 raw_buffer = buffer.as_ptr()
+            print("creating placeholder")
             expr = ffi_call(lib.plaidml_expr_placeholder, shape.as_ptr(), raw_buffer,
                             name.encode())
         elif dims is not None:
@@ -336,8 +337,10 @@ class Tensor(ForeignObject):
             expr = None
         elif value is not None:
             if isinstance(value, six.integer_types):
+                print('value is six.integer')
                 expr = ffi_call(lib.plaidml_expr_int, value)
             elif isinstance(value, float):
+                print('value is float')
                 expr = ffi_call(lib.plaidml_expr_float, value)
             else:
                 raise TypeError('Invalid type for value={}'.format(value))

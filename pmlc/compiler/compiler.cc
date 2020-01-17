@@ -213,13 +213,13 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
       /*optLevel=*/0, /*sizeLevel=*/0,
       /*targetMachine=*/nullptr);
 
-  if (VLOG_IS_ON(6)) {
-    auto llvmModule = translateModuleToLLVMIR(*module);
-    if (!llvmModule) {
-      throw std::runtime_error("could not convert to LLVM IR");
-    }
-    llvmModule->print(llvm::errs(), nullptr);
+  // if (VLOG_IS_ON(6)) {
+  auto llvmModule = translateModuleToLLVMIR(*module);
+  if (!llvmModule) {
+    throw std::runtime_error("could not convert to LLVM IR");
   }
+  llvmModule->print(llvm::errs(), nullptr);
+  //}
 
   auto maybeEngine = ExecutionEngine::create(*module, optPipeline);
   llvm::handleAllErrors(maybeEngine.takeError(), [](const llvm::ErrorInfoBase& b) {
@@ -239,6 +239,7 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
 Executable::~Executable() = default;
 
 void Executable::invoke() {
+  IVLOG(1, "invoking executable");
   auto result = engine->invoke(entry, llvm::MutableArrayRef<void*>(args));
   if (result) {
     throw std::runtime_error("JIT invocation failed");
