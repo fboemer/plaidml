@@ -535,6 +535,8 @@ struct ContractionOpConversion : public OpConversionPattern<ContractionOp> {
       ArrayRef<Value> operands,  //
       ConversionPatternRewriter& rewriter) const {
     // Create an adaptor
+    IVLOG(3, "trying to rewrite contraction op");
+
     ContractionOpOperandAdaptor cionAdaptor(operands);
     auto cionOperands = cionAdaptor.operands();
 
