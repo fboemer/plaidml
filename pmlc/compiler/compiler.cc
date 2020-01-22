@@ -196,9 +196,9 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
 
   std::vector<MemRefType> memRefTypes;
   manager.addPass(ArgumentCollectorPass::create(&memRefTypes));
-  if (VLOG_IS_ON(6)) {
-    manager.addPass(InjectTracingPass::create());
-  }
+  // if (VLOG_IS_ON(6)) {
+  //  manager.addPass(InjectTracingPass::create());
+  // }
 
   auto pipelineBuilder = resolveTarget(target);
   pipelineBuilder(&manager);
@@ -239,7 +239,12 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
 Executable::~Executable() = default;
 
 void Executable::invoke() {
+  auto t1 = std::chrono::system_clock::now();
   auto result = engine->invoke(entry, llvm::MutableArrayRef<void*>(args));
+  auto t2 = std::chrono::system_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+  std::cout << "invoke time [us] " << time << std::endl;
+
   if (result) {
     throw std::runtime_error("JIT invocation failed");
   }

@@ -145,7 +145,7 @@ TEST(CppEdsl, BitLeft) {
 
 TEST(CppEdsl, BitRightSignedScalarSigned) {
   auto A = Placeholder(DType::INT64, {3, 3});
-  auto C = A >> 1;
+  auto C = A >> -5;
   Program program("bit_right", {C});
 
   std::vector<std::int64_t> input_a{1 << 1, 2 << 1, 3 << 1,  //
@@ -251,6 +251,204 @@ TEST(CppEdsl, BitXor) {
     std::vector<std::uint64_t> actual(data, data + expected.size());
     EXPECT_THAT(actual, ContainerEq(expected));
   }
+}
+
+Tensor add_poly_poly_coeffmod_2d(const Tensor& cipher, const Tensor& plain, const Tensor& coeff_modulus) {
+  TensorDim L;  // coeff_mod_count
+  TensorDim N;  // poly_modulus_degree
+
+  cipher.bind_dims(L, N);
+  plain.bind_dims(L, N);
+  coeff_modulus.bind_dims(L, 1);
+
+  auto sum = TensorOutput(L, N);
+  sum = cipher + plain - coeff_modulus;
+  return sum;
+
+  // auto cmp = cast(cast(sum >= coeff_modulus, DType::INT64), DType::UINT64);
+  // auto P = cmp + coeff_modulus;
+  // auto R_sum = sum - P;
+  // return R_sum;
+
+  /* auto cmp = cast(-cast(sum >= coeff_modulus, plaidml::DType::INT64),
+  plaidml::DType::UINT64); sum = sum - (coeff_modulus & cmp); return sum; */
+}
+
+Tensor add_poly_poly_coeffmod_2d_fast(const Tensor& cipher, const Tensor& plain, const Tensor& coeff_modulus) {
+  TensorDim L;  // coeff_mod_count
+  TensorDim N;  // poly_modulus_degree
+
+  cipher.bind_dims(L, N);
+  plain.bind_dims(L, N);
+  coeff_modulus.bind_dims(L, N);
+
+  auto sum = TensorOutput(L, N);
+
+  sum(L, N) += cipher(L, N);
+  sum(L, N) += plain(L, N);
+  sum(L, N) += coeff_modulus(L, N);
+
+  // sum = cipher + plain - coeff_modulus;
+  return sum;
+
+  // auto cmp = cast(cast(sum >= coeff_modulus, DType::INT64), DType::UINT64);
+  // auto P = cmp + coeff_modulus;
+  // auto R_sum = sum - P;
+  // return R_sum;
+
+  /* auto cmp = cast(-cast(sum >= coeff_modulus, plaidml::DType::INT64),
+  plaidml::DType::UINT64); sum = sum - (coeff_modulus & cmp); return sum; */
+}
+
+TEST(CppEdsl, runtime) {
+  long int N = 8192;
+  long int L = 3;
+  std::vector<std::uint64_t> A(N * L);
+  std::vector<std::uint64_t> B(N * L);
+  std::vector<std::uint64_t> C(N * L);
+  std::vector<std::uint64_t> D(N * L);
+
+  for (size_t i = 0; i < A.size(); ++i) {
+    A[i] = i * 10;
+    B[i] = i * 2;
+    C[i] = i * 2 + 1;
+  }
+
+  {
+    auto test_fun = [&](std::uint64_t* a, std::uint64_t* b, std::uint64_t* c, std::uint64_t* d) {
+      for (long int i = 0; i < N * L; ++i) {
+        *d = *a + *b - *c;
+        ++a;
+        ++b;
+        ++c;
+        ++d;
+      }
+    };
+
+    auto trials = 100;
+    test_fun(A.data(), B.data(), C.data(), D.data());
+    auto t1 = std::chrono::system_clock::now();
+    for (auto i = 0; i < trials; ++i) {
+      test_fun(A.data(), B.data(), C.data(), D.data());
+    }
+    auto t2 = std::chrono::system_clock::now();
+    auto time = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / static_cast<float>(trials);
+    std::cout << "dummy add function runtime " << time << " us" << std::endl;
+  }
+
+  {
+    auto test_fun = [&](std::uint64_t* a, std::uint64_t* b, std::uint64_t* c, std::uint64_t* d) {
+      std::uint64_t* d_init = d;
+      for (long int i = 0; i < N * L; ++i) {
+        *d = *a + *b;
+        ++a;
+        ++b;
+        ++d;
+      }
+      for (long int i = 0; i < N * L; ++i) {
+        *d_init = *d_init - *c;
+        ++d_init;
+      }
+    };
+
+    auto trials = 100;
+    test_fun(A.data(), B.data(), C.data(), D.data());
+    auto t1 = std::chrono::system_clock::now();
+    for (auto i = 0; i < trials; ++i) {
+      test_fun(A.data(), B.data(), C.data(), D.data());
+    }
+    auto t2 = std::chrono::system_clock::now();
+    auto time = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / static_cast<float>(trials);
+    std::cout << "dummy add [two loops] function runtime " << time << " us" << std::endl;
+  }
+}
+
+TEST(CppEdsl, AddPlainFast) {
+  long int N = 8192;
+  long int L = 3;
+  auto cipher_in = Placeholder(DType::UINT64, {L, N});
+  auto plain_in = Placeholder(DType::UINT64, {L, N});
+  auto q = Placeholder(DType::UINT64, {L, N});
+
+  auto cipher_out = add_poly_poly_coeffmod_2d_fast(cipher_in, plain_in, q);
+
+  Program program("add_plain", {cipher_out});
+  IVLOG(1, "program " << program);
+  auto binder = exec::Binder(program);
+  auto executable = binder.compile();
+
+  std::vector<std::uint64_t> cipher_data(N * L);
+  std::vector<std::uint64_t> plain_data(N * L);
+
+  for (long int i = 0; i < N * L; ++i) {
+    cipher_data[i] = i + 1;
+    plain_data[i] = i + 37;
+  }
+
+  std::vector<std::uint64_t> coeff_mods{10, 20, 30};
+
+  binder.input(cipher_in).copy_from(cipher_data.data());
+  binder.input(plain_in).copy_from(plain_data.data());
+  binder.input(q).copy_from(coeff_mods.data());
+
+  auto t0 = std::chrono::system_clock::now();
+  executable->run();
+
+  auto trials = 100;
+  auto t1 = std::chrono::system_clock::now();
+  for (auto i = 0; i < trials; ++i) {
+    executable->run();
+  }
+  auto t2 = std::chrono::system_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / static_cast<float>(trials);
+  std::cout << "plaid add_plain_inplace time " << time << " us" << std::endl;
+
+  auto time_first = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+  std::cout << "plaid add_plain_inplace time_first " << time_first << " us" << std::endl;
+}
+
+TEST(CppEdsl, AddPlain) {
+  long int N = 8192;
+  long int L = 3;
+  auto cipher_in = Placeholder(DType::UINT64, {L, N});
+  auto plain_in = Placeholder(DType::UINT64, {L, N});
+  auto q = Placeholder(DType::UINT64, {L, 1});
+
+  auto cipher_out = add_poly_poly_coeffmod_2d(cipher_in, plain_in, q);
+
+  Program program("add_plain", {cipher_out});
+  IVLOG(1, "program " << program);
+  auto binder = exec::Binder(program);
+  auto executable = binder.compile();
+
+  std::vector<std::uint64_t> cipher_data(N * L);
+  std::vector<std::uint64_t> plain_data(N * L);
+
+  for (long int i = 0; i < N * L; ++i) {
+    cipher_data[i] = i + 1;
+    plain_data[i] = i + 37;
+  }
+
+  std::vector<std::uint64_t> coeff_mods{10, 20, 30};
+
+  binder.input(cipher_in).copy_from(cipher_data.data());
+  binder.input(plain_in).copy_from(plain_data.data());
+  binder.input(q).copy_from(coeff_mods.data());
+
+  auto t0 = std::chrono::system_clock::now();
+  executable->run();
+
+  auto trials = 100;
+  auto t1 = std::chrono::system_clock::now();
+  for (auto i = 0; i < trials; ++i) {
+    executable->run();
+  }
+  auto t2 = std::chrono::system_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / static_cast<float>(trials);
+  std::cout << "plaid add_plain_inplace time " << time << " us" << std::endl;
+
+  auto time_first = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+  std::cout << "plaid add_plain_inplace time_first " << time_first << " us" << std::endl;
 }
 
 TEST(CppEdsl, Add) {
