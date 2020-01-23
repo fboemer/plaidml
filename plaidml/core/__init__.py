@@ -127,6 +127,7 @@ class TensorShape(ForeignObject):
 
     def __init__(self, dtype=None, sizes=[], strides=None, ptr=None):
         print("creating TensorShape with dtype ", dtype)
+        self._dtype = dtype
         if ptr:
             print('tensor shape from ptr')
             ffi_obj = ptr
@@ -151,6 +152,8 @@ class TensorShape(ForeignObject):
 
     @property
     def dtype(self):
+        if self._dtype is not None:
+            return self._dtype
         return DType(ffi_call(lib.plaidml_shape_get_dtype, self.as_ptr()))
 
     @property
