@@ -272,6 +272,153 @@ class TestEdsl(unittest.TestCase):
         [4, 5, 6 + (1 << 12)],
         [7 + (1 << 24), 8 + (1 << 31), (1 << 32) - 1]])
 
+    def test_bit_or(self):
+        A = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        B = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        C = A | B
+
+        program = Program('bit_or', [C])
+
+        outputs = plaidml.exec.run(program, [
+          (A, np.array([
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 9]], dtype=np.uint64)),
+          (B, np.array([
+            [10, 11, 12],
+            [13, 14, 15],
+            [16, 17, 18] ], dtype=np.uint64))])
+
+        self.assertEqual(outputs[0].tolist(),
+          [[1 | 10, 2 | 11 , 3 | 12],
+          [4 | 13, 5 | 14, 6 | 15],
+          [7 | 16, 8 | 17, 9 | 18]])
+
+    def test_bit_left(self):
+        A = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        B = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        C = A << B
+
+        program = Program('bit_left', [C])
+
+        outputs = plaidml.exec.run(program, [
+          (A, np.array([
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 9]], dtype=np.uint64)),
+          (B, np.array([
+            [10, 11, 12],
+            [13, 14, 15],
+            [16, 17, 18] ], dtype=np.uint64))])
+
+        self.assertEqual(outputs[0].tolist(),
+          [[1 << 10, 2 << 11 , 3 << 12],
+          [4 << 13, 5 << 14, 6 << 15],
+          [7 << 16, 8 << 17, 9 << 18]])
+
+    def test_bit_right(self):
+        A = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        B = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        C = A >> B
+
+        program = Program('bit_left', [C])
+
+        outputs = plaidml.exec.run(program, [
+          (A, np.array([
+            [1 << 10, 2 << 11 , 3 << 12],
+            [4 << 13, 5 << 14, 6 << 15],
+            [7 << 16, 8 << 17, 9 << 18]], dtype=np.uint64)),
+          (B, np.array([
+            [10, 11, 12],
+            [13, 14, 15],
+            [16, 17, 18]], dtype=np.uint64))])
+
+        self.assertEqual(outputs[0].tolist(),
+          [[1, 2, 3],
+          [4, 5, 6],
+          [7, 8, 9]])
+
+    def test_bit_xor(self):
+        A = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        B = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        C = A ^ B
+
+        program = Program('bit_or', [C])
+
+        outputs = plaidml.exec.run(program, [
+          (A, np.array([
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 9]], dtype=np.uint64)),
+          (B, np.array([
+            [10, 11, 12],
+            [13, 14, 15],
+            [16, 17, 18] ], dtype=np.uint64))])
+
+        self.assertEqual(outputs[0].tolist(),
+          [[1 ^ 10, 2 ^ 11, 3 ^ 12],
+            [4 ^ 13, 5 ^ 14, 6 ^ 15],
+            [7 ^ 16, 8 ^ 17, 9 ^ 18]])
+
+    def test_add(self):
+        A = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        B = Tensor(LogicalShape(plaidml.DType.UINT64, [3, 3]))
+        C = A + B
+
+        program = Program('add', [C])
+
+        outputs = plaidml.exec.run(program, [
+          (A, np.array([
+            [1, 2, 3],
+            [4, 5, 6 + (1 << 12)],
+            [7 + (1 << 24), 8 + (1 << 32), 9 + (1 << 40)]], dtype=np.uint64)),
+          (B, np.array([
+            [1, 2 + (1 << 12), 3],
+            [4 + (1 << 24), 5, 6 + (1 <<32)],
+            [7, 8 + (1 << 40), 9]], dtype=np.uint64))])
+
+        self.assertEqual(outputs[0].tolist(),
+          [[2, 4 + (1 << 12), 6],
+            [8 + (1 << 24), 10, 12 + (1 << 12) + (1 << 32)],
+            [14 + (1 << 24), 16 + (1 << 32) + (1 << 40), 18 + (1 << 40)]])
+
+    def test_dot(self):
+        A = Tensor(LogicalShape(plaidml.DType.FLOAT32, [3, 3]))
+        B = Tensor(LogicalShape(plaidml.DType.FLOAT32, [3, 3]))
+        C = dot(A, B)
+        program = Program('dot', [C])
+        expected = '''
+#map0 = affine_map<(d0, d1, d2) -> (d0, d1)>
+#map1 = affine_map<(d0, d1, d2) -> (d0, d2)>
+#map2 = affine_map<(d0, d1, d2) -> (d2, d1)>
+
+
+!f32 = type tensor<!eltwise.f32>
+module {
+  func @dot(%arg0: tensor<3x3x!eltwise.f32>, %arg1: tensor<3x3x!eltwise.f32>) -> tensor<3x3x!eltwise.f32> {
+    %cst = "eltwise.sconst"() {value = 0.000000e+00 : f64} : () -> !f32
+    %0 = tile.cion add, mul, %cst, %arg1, %arg0 {idxs = ["i", "j", "k"], sink = #map0, srcs = [#map1, #map2]} : !f32, tensor<3x3x!eltwise.f32>, tensor<3x3x!eltwise.f32> -> tensor<3x3x!eltwise.f32>
+    return %0 : tensor<3x3x!eltwise.f32>
+  }
+}
+'''
+        self.compare_results(program, expected)
+
+        outputs = plaidml.exec.run(program, [
+            (A, np.array([
+              [1, 2, 3],
+              [4, 5, 6],
+              [7, 8, 9]], dtype=np.float32)),
+            (B, np.array([
+              [1, 2, 3],
+              [4, 5, 6],
+              [7, 8, 9]], dtype=np.float32))])
+
+        self.assertEqual(outputs[0].tolist(),
+          [[30,  36,  42],
+           [66,  81,  96],
+           [102, 126, 150]])
+
     def test_sum_over_axis(self):
         I = Tensor(LogicalShape(plaidml.DType.FLOAT32, [1, 784]))
         O = sum_over_axis(I)
