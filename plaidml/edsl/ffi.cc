@@ -209,7 +209,6 @@ void plaidml_logical_shape_free(  //
 plaidml_shape* plaidml_logical_shape_into_tensor_shape(  //
     plaidml_error* err,                                  //
     plaidml_logical_shape* shape) {
-  std::cout << " plaidml_shape* plaidml_logical_shape_into_tensor_shape " << std::endl;
   return ffi_wrap<plaidml_shape*>(err, 0, [&] {  //
     return new plaidml_shape{GlobalContext::get()->IntoMemRefType(shape->type)};
   });

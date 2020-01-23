@@ -263,8 +263,6 @@ class TestEdsl(unittest.TestCase):
        O =  cast(I, plaidml.DType.UINT32)
        program = Program('cast', [O])
 
-       print('program', program)
-
        outputs = plaidml.exec.run(program, [(I, np.array([
         [1, 2, 3],
         [4, 5, 6 + (1 << 12)],

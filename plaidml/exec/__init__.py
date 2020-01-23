@@ -114,11 +114,7 @@ class Binder:
         buffer = map.get(arg.ref)
         if buffer:
             return buffer
-
-        print('creating new buffer from arg ', arg.shape)
-        print('arg into tensor shape  ', arg.shape.into_TensorShape())
         buffer = plaidml.Buffer(arg.shape.into_TensorShape(), device=self.device)
-        print('done creating new buffer from arg ', arg.shape)
         map[arg.ref] = buffer
         return buffer
 
@@ -128,9 +124,7 @@ def run(program, inputs, device=None, target=None):
     executable = binder.compile()
     for tensor, data in inputs:
         buffer = binder.input(tensor)
-        print('running program in input buffer with type', buffer.shape.dtype)
         data = np.array(data, dtype=buffer.shape.dtype.into_numpy())
-        print('buffer.shape.dtype.into_numpy', buffer.shape.dtype.into_numpy())
         buffer.copy_from_ndarray(data)
     executable.run()
     return [binder.output(x.ref).as_ndarray() for x in program.outputs]
