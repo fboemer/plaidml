@@ -52,6 +52,11 @@ def ScalarConstantOp :
       result.addAttribute("value", builder->getI64IntegerAttr(value));
       result.addTypes(RankedTensorType::get({}, type));
     }]
+  >, OpBuilder<
+    "Builder* builder, OperationState& result, Type type, uint64_t value", [{
+      result.addAttribute("value", builder->getI64IntegerAttr(value));
+      result.addTypes(RankedTensorType::get({}, type));
+    }]
   >];
 
   let extraClassDeclaration = [{

@@ -23,6 +23,7 @@ typedef enum {
   PLAIDML_VALUE_DIM,
   PLAIDML_VALUE_EXPR,
   PLAIDML_VALUE_FLOAT,
+  PLAIDML_VALUE_UINT,
   PLAIDML_VALUE_INT,
   PLAIDML_VALUE_STR,
   PLAIDML_VALUE_TUPLE,
@@ -213,6 +214,10 @@ plaidml_expr* plaidml_expr_int(  //
     plaidml_error* err,          //
     int64_t value);
 
+plaidml_expr* plaidml_expr_uint(  //
+    plaidml_error* err,           //
+    uint64_t value);
+
 plaidml_expr* plaidml_expr_float(  //
     plaidml_error* err,            //
     double value);
@@ -335,6 +340,10 @@ plaidml_value* plaidml_value_int(  //
     plaidml_error* err,            //
     int64_t value);
 
+plaidml_value* plaidml_value_uint(  //
+    plaidml_error* err,             //
+    uint64_t value);
+
 plaidml_value* plaidml_value_str(  //
     plaidml_error* err,            //
     const char* value);
@@ -358,6 +367,10 @@ double plaidml_value_float_get(  //
 
 int64_t plaidml_value_int_get(  //
     plaidml_error* err,         //
+    plaidml_value* value);
+
+uint64_t plaidml_value_uint_get(  //
+    plaidml_error* err,           //
     plaidml_value* value);
 
 plaidml_string* plaidml_value_str_get(  //

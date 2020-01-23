@@ -50,6 +50,7 @@ using Variant = std::variant<  //
     plaidml_dim_expr,          // PLAIDML_VALUE_DIM
     plaidml_expr,              // PLAIDML_VALUE_EXPR
     double,                    // PLAIDML_VALUE_FLOAT
+    uint64_t,                  // PLAIDML_VALUE_UINT
     int64_t,                   // PLAIDML_VALUE_INT
     std::string,               // PLAIDML_VALUE_STR
     Tuple                      // PLAIDML_VALUE_TUPLE

@@ -327,8 +327,16 @@ std::vector<Value> TileBuilder::GetTupleElements(Value value) {
   throw std::runtime_error("Expected TupleOp");
 }
 
+Value TileBuilder::MakeScalarConstantOp(uint64_t value) {
+  IVLOG(5, "TileBuilder::MakeScalarConstantOp> " << value);
+  std::cout << "make scalar constant op uint64_t " << value << std::endl;
+  auto type = impl->builder.getType<ScalarType>(DataType::u64);
+  return impl->builder.create<ScalarConstantOp>(impl->loc, type, value).result();
+}
+
 Value TileBuilder::MakeScalarConstantOp(int64_t value) {
   IVLOG(5, "TileBuilder::MakeScalarConstantOp> " << value);
+  std::cout << "make scalar constant op int64_t " << value << std::endl;
   auto type = impl->builder.getType<ScalarType>(DataType::i32);
   return impl->builder.create<ScalarConstantOp>(impl->loc, type, value).result();
 }

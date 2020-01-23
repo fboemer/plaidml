@@ -90,6 +90,8 @@ local exports = [
   'plaidml_value_expr_get',
   'plaidml_value_float',
   'plaidml_value_float_get',
+  'plaidml_value_uint',
+  'plaidml_value_uint_get',
   'plaidml_value_int',
   'plaidml_value_int_get',
   'plaidml_value_repr',

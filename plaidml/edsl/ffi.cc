@@ -209,6 +209,7 @@ void plaidml_logical_shape_free(  //
 plaidml_shape* plaidml_logical_shape_into_tensor_shape(  //
     plaidml_error* err,                                  //
     plaidml_logical_shape* shape) {
+  std::cout << " plaidml_shape* plaidml_logical_shape_into_tensor_shape " << std::endl;
   return ffi_wrap<plaidml_shape*>(err, 0, [&] {  //
     return new plaidml_shape{GlobalContext::get()->IntoMemRefType(shape->type)};
   });
@@ -336,6 +337,15 @@ plaidml_expr* plaidml_expr_int(  //
     int64_t value) {
   return ffi_wrap<plaidml_expr*>(err, nullptr, [&] {
     IVLOG(3, "plaidml_expr_int> " << value);
+    return new plaidml_expr{GlobalContext::get()->MakeScalarConstantOp(value)};
+  });
+}
+
+plaidml_expr* plaidml_expr_uint(  //
+    plaidml_error* err,           //
+    uint64_t value) {
+  return ffi_wrap<plaidml_expr*>(err, nullptr, [&] {
+    IVLOG(3, "plaidml_expr_uint> " << value);
     return new plaidml_expr{GlobalContext::get()->MakeScalarConstantOp(value)};
   });
 }
@@ -716,6 +726,8 @@ plaidml_value_kind plaidml_value_get_kind(  //
             return PLAIDML_VALUE_EXPR;
           } else if constexpr (std::is_same_v<T, double>) {
             return PLAIDML_VALUE_FLOAT;
+          } else if constexpr (std::is_same_v<T, uint64_t>) {
+            return PLAIDML_VALUE_UINT;
           } else if constexpr (std::is_same_v<T, int64_t>) {
             return PLAIDML_VALUE_INT;
           } else if constexpr (std::is_same_v<T, std::string>) {
@@ -744,6 +756,15 @@ plaidml_value* plaidml_value_int(  //
     int64_t value) {
   return ffi_wrap<plaidml_value*>(err, nullptr, [&] {
     IVLOG(3, "plaidml_value_int> " << value);
+    return new plaidml_value{value};
+  });
+}
+
+plaidml_value* plaidml_value_uint(  //
+    plaidml_error* err,             //
+    uint64_t value) {
+  return ffi_wrap<plaidml_value*>(err, nullptr, [&] {
+    IVLOG(3, "plaidml_value_uint> " << value);
     return new plaidml_value{value};
   });
 }
@@ -838,6 +859,15 @@ int64_t plaidml_value_int_get(  //
   return ffi_wrap<int64_t>(err, 0, [&] {
     IVLOG(3, "plaidml_value_int_get");
     return std::get<int64_t>(value->variant);
+  });
+}
+
+uint64_t plaidml_value_uint_get(  //
+    plaidml_error* err,           //
+    plaidml_value* value) {
+  return ffi_wrap<uint64_t>(err, 0, [&] {
+    IVLOG(3, "plaidml_value_uint_get");
+    return std::get<uint64_t>(value->variant);
   });
 }
 

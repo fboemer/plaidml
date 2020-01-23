@@ -81,8 +81,12 @@ class LogicalShape(ForeignObject):
             TensorShape: The resultant TensorShape.
 
         """
-        return TensorShape(
+        print('self', self)
+        ret = TensorShape(
+            dtype=self.dtype,
             ptr=ffi_call(lib.plaidml_logical_shape_into_tensor_shape, self.as_ptr()))
+        print('into_TensorShape', ret)
+        return ret
 
 
 Constraint = namedtuple('Constraint', ['lhs', 'rhs'])
@@ -331,6 +335,7 @@ class Tensor(ForeignObject):
                 raw_buffer = buffer.as_ptr()
             expr = ffi_call(lib.plaidml_expr_placeholder, shape.as_ptr(), raw_buffer,
                             name.encode())
+            print('expr', expr)
         elif dims is not None:
             self._dims = dims
             expr = None

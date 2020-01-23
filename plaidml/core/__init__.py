@@ -126,8 +126,11 @@ class TensorShape(ForeignObject):
     __ffi_repr__ = lib.plaidml_shape_repr
 
     def __init__(self, dtype=None, sizes=[], strides=None, ptr=None):
+        print("creating TensorShape with dtype ", dtype)
         if ptr:
+            print('tensor shape from ptr')
             ffi_obj = ptr
+            print('ffi_obj', ffi_obj)
         elif dtype is not None:
             if strides is None:
                 strides = []
@@ -139,9 +142,12 @@ class TensorShape(ForeignObject):
             raw_sizes = ffi.new('int64_t[]', sizes)
             raw_strides = ffi.new('int64_t[]', strides)
             ffi_obj = ffi_call(lib.plaidml_shape_alloc, dtype, len(sizes), raw_sizes, raw_strides)
+            print('ffi_obj', ffi_obj)
         else:
             raise ValueError('One of dtype= or ptr= must be specified.')
         super(TensorShape, self).__init__(ffi_obj)
+
+        print('dtype of newly created', self.dtype)
 
     @property
     def dtype(self):
@@ -164,7 +170,8 @@ class TensorShape(ForeignObject):
     @property
     def strides(self):
         return [
-            ffi_call(lib.plaidml_shape_get_dim_stride, self.as_ptr(), i) for i in range(self.ndims)
+            ffi_call(lib.plaidml_shape_get_dim_stride, self.as_ptr(), i)
+            for i in range(self.ndims)
         ]
 
 
@@ -204,6 +211,7 @@ class Buffer(ForeignObject):
 
     def __init__(self, shape, device=None, ptr=None):
         self._shape = shape
+        print('new buffer shape ', shape, ' with dtype', shape.dtype)
         self._ndarray = None
         if ptr:
             ffi_obj = ptr
@@ -224,9 +232,10 @@ class Buffer(ForeignObject):
         yield _View(ffi_call(lib.plaidml_buffer_mmap_discard, self.as_ptr()), self.shape)
 
     def as_ndarray(self):
+        print('as ndarray type ', self.shape.dtype.into_numpy(), 'from shape', self.shape)
         if self._ndarray is None:
-            self._ndarray = np.ndarray(tuple(x for x in self.shape.sizes),
-                                       dtype=self.shape.dtype.into_numpy())
+            self._ndarray = np.ndarray(
+                tuple(x for x in self.shape.sizes), dtype=self.shape.dtype.into_numpy())
         with self.mmap_current() as view:
             view.copy_to_ndarray(self._ndarray)
         return self._ndarray

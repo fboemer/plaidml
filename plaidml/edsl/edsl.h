@@ -478,7 +478,16 @@ class Tensor {
   /// \return Tensor
   ///
   explicit Tensor(unsigned value) : impl_(new Impl) {  //
-    impl_->ptr = details::make_ptr(ffi::call<plaidml_expr*>(plaidml_expr_int, value));
+    impl_->ptr = details::make_ptr(ffi::call<plaidml_expr*>(plaidml_expr_uint, value));
+  }
+
+  ///
+  /// Tensor constructor
+  /// \param value unsigned int
+  /// \return Tensor
+  ///
+  explicit Tensor(uint64_t value) : impl_(new Impl) {  //
+    impl_->ptr = details::make_ptr(ffi::call<plaidml_expr*>(plaidml_expr_uint, value));
   }
 
   ///
@@ -1255,7 +1264,7 @@ class Value {
 
   explicit Value(int value) : ptr_(details::make_ptr(ffi::call<plaidml_value*>(plaidml_value_int, value))) {}
 
-  explicit Value(size_t value) : ptr_(details::make_ptr(ffi::call<plaidml_value*>(plaidml_value_int, value))) {}
+  explicit Value(size_t value) : ptr_(details::make_ptr(ffi::call<plaidml_value*>(plaidml_value_uint, value))) {}
 
   explicit Value(int64_t value) : ptr_(details::make_ptr(ffi::call<plaidml_value*>(plaidml_value_int, value))) {}
 
