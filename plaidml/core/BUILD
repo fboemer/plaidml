@@ -1,4 +1,4 @@
-# Copyright 2019 Intel Corporation.
+# Copyright 2020 Intel Corporation.
 
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
 load(

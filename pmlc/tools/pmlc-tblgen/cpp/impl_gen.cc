@@ -1,6 +1,6 @@
 //===- ImplGen.cc - MLIR op lib dialect implementation generator for C++ --===//
 //
-// Copyright 2019 Intel Corporation.
+// Copyright 2020 Intel Corporation.
 //
 // =============================================================================
 //

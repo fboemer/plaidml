@@ -1,4 +1,4 @@
-# Copyright 2019 Intel Corporation
+# Copyright 2020 Intel Corporation
 
 load("@bazel_latex//packages:packages.bzl", "latex_package")
 

@@ -1,6 +1,6 @@
 //===- utils.cc - MLIR op lib dialect tblgen utils for C++ ----------------===//
 //
-// Copyright 2019 Intel Corporation.
+// Copyright 2020 Intel Corporation.
 //
 // =============================================================================
 //
@@ -20,7 +20,7 @@ using mlir::StringRef;
 
 namespace pmlc::tools::tblgen::cpp {
 
-static const char* const fileCommentHeader = R"( // Copyright 2019 Intel Corporation.
+static const char* const fileCommentHeader = R"( // Copyright 2020 Intel Corporation.
 /*===- TableGen'erated file -------------------------------------*- C++ -*-===*\
 |*                                                                            *|
 |* Op Lib C++ EDSL Wrapper                                                    *|

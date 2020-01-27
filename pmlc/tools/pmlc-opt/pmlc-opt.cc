@@ -1,4 +1,4 @@
-// Copyright 2019 Intel Corporation.
+// Copyright 2020 Intel Corporation.
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"

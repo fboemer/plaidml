@@ -1,6 +1,6 @@
 //===- OpLibWrapperGen.cpp - MLIR op lib wrapper generator ----------------===//
 //
-// Copyright 2019 Intel Corporation.
+// Copyright 2020 Intel Corporation.
 //
 // =============================================================================
 //

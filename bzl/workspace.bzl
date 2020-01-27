@@ -1,4 +1,4 @@
-# Copyright 2019 Intel Corporation
+# Copyright 2020 Intel Corporation
 
 load("//vendor/conda:repo.bzl", "conda_repo")
 load("//vendor/xsmm:repo.bzl", "xsmm_repo")

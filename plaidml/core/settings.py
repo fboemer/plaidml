@@ -1,4 +1,4 @@
-# Copyright 2019 Intel Corporation.
+# Copyright 2020 Intel Corporation.
 
 from plaidml.ffi import decode_str, ffi, ffi_call, lib
 

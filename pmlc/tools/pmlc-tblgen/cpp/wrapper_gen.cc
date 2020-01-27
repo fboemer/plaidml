@@ -1,6 +1,6 @@
 //===- WrapperGen.cc - MLIR op lib dialect wrapper generator for C++ ------===//
 //
-// Copyright 2019 Intel Corporation.
+// Copyright 2020 Intel Corporation.
 //
 // =============================================================================
 //

@@ -1,6 +1,6 @@
 //===- utils.cc - MLIR op lib dialect tblgen utils for Python -------------===//
 //
-// Copyright 2019 Intel Corporation.
+// Copyright 2020 Intel Corporation.
 //
 // =============================================================================
 //
@@ -20,7 +20,7 @@ using mlir::StringRef;
 
 namespace pmlc::tools::tblgen::python {
 
-static inline const char* const fileCommentHeader = R"(## Copyright 2019 Intel Corporation.
+static inline const char* const fileCommentHeader = R"(## Copyright 2020 Intel Corporation.
 ##===- TableGen'erated file ----------------------------------*- Python -*-===##
 ##                                                                            ##
 ## Op Lib Python EDSL Wrapper                                                 ##

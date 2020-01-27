@@ -1,4 +1,4 @@
-# Copyright 2019, Intel Corporation.
+# Copyright 2020, Intel Corporation.
 
 load("@rules_python//python:defs.bzl", "py_test")
 load("//bzl:plaidml.bzl", "plaidml_cc_binary", "plaidml_cc_library")

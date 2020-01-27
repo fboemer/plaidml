@@ -1,4 +1,4 @@
-// Copyright 2019, Intel Corporation
+// Copyright 2020, Intel Corporation
 
 #ifndef AFFINE_OPS_BASE
 include "mlir/Dialect/AffineOps/AffineOpsBase.td"

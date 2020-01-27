@@ -1,4 +1,4 @@
-// Copyright 2019 Intel Corporation.
+// Copyright 2020 Intel Corporation.
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
