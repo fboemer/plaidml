@@ -97,6 +97,37 @@ enum class DType {
   FLOAT64 = PLAIDML_DATA_FLOAT64,
 };
 
+inline const char* to_string(DType dtype) {
+  switch (dtype) {
+    case DType::BOOLEAN:
+      return "bool";
+    case DType::INT8:
+      return "int8";
+    case DType::UINT8:
+      return "uint8";
+    case DType::INT16:
+      return "int16";
+    case DType::UINT16:
+      return "uint16";
+    case DType::INT32:
+      return "int32";
+    case DType::UINT32:
+      return "uint32";
+    case DType::INT64:
+      return "uint64";
+    case DType::BFLOAT16:
+      return "bfloat16";
+    case DType::FLOAT16:
+      return "float16";
+    case DType::FLOAT32:
+      return "float32";
+    case DType::FLOAT64:
+      return "float64";
+    default:
+      return "<invalid>";
+  }
+}
+
 ///
 /// \ingroup core_objects
 /// \class TensorShape
@@ -152,20 +183,20 @@ class TensorShape {
   /// dtype
   /// \return DType
   ///
-  DType dtype() const { return static_cast<DType>(ffi::call<plaidml_datatype>(plaidml_shape_get_dtype, ptr_.get())); }
+  DType dtype() const { return static_cast<DType>(ffi::call<plaidml_datatype>(plaidml_shape_get_dtype, as_ptr())); }
 
   ///
   /// Returns the number of dimensions in the TensorShape
   /// \return size_t
   ///
-  size_t ndims() const { return ffi::call<size_t>(plaidml_shape_get_ndims, ptr_.get()); }
+  size_t ndims() const { return ffi::call<size_t>(plaidml_shape_get_ndims, as_ptr()); }
 
   ///
   /// nbytes
   /// \return uint64_t
   ///
-  uint64_t nbytes() const { return ffi::call<uint64_t>(plaidml_shape_get_nbytes, ptr_.get()); }
-  std::string str() const { return ffi::str(ffi::call<plaidml_string*>(plaidml_shape_repr, ptr_.get())); }
+  uint64_t nbytes() const { return ffi::call<uint64_t>(plaidml_shape_get_nbytes, as_ptr()); }
+  std::string str() const { return ffi::str(ffi::call<plaidml_string*>(plaidml_shape_repr, as_ptr())); }
   bool operator==(const TensorShape& rhs) const { return str() == rhs.str(); }
   plaidml_shape* as_ptr() const { return ptr_.get(); }
 
@@ -252,7 +283,7 @@ class Buffer {
   /// \return View
   ///
   View mmap_current() {
-    return View(details::make_plaidml_view(ffi::call<plaidml_view*>(plaidml_buffer_mmap_current, ptr_.get())));
+    return View(details::make_plaidml_view(ffi::call<plaidml_view*>(plaidml_buffer_mmap_current, as_ptr())));
   }
 
   ///
@@ -260,7 +291,7 @@ class Buffer {
   /// \return View
   ///
   View mmap_discard() {
-    return View(details::make_plaidml_view(ffi::call<plaidml_view*>(plaidml_buffer_mmap_discard, ptr_.get())));
+    return View(details::make_plaidml_view(ffi::call<plaidml_view*>(plaidml_buffer_mmap_discard, as_ptr())));
   }
 
   void copy_into(void* dst) {

@@ -654,9 +654,9 @@ struct ComputeBoundsImpl {
   SmallVector<AffineExpr, 4> affineConstraints;
 
   explicit ComputeBoundsImpl(ContractionOp op) : op(op) {
-    SmallVector<Shape, 4> shapes{getShape(op.result()->getType())};
+    SmallVector<Shape, 4> shapes{getShape(op.result().getType())};
     for (auto src : op.operands()) {
-      shapes.emplace_back(getShape(src->getType()));
+      shapes.emplace_back(getShape(src.getType()));
     }
 
     Contraction contraction{op};
@@ -752,8 +752,7 @@ void ComputeBoundsPass::runOnFunction() {
 }
 
 std::unique_ptr<mlir::OpPassBase<mlir::FuncOp>> createComputeBoundsPass() {
-  std::unique_ptr<mlir::OpPassBase<mlir::FuncOp>> pass = std::make_unique<ComputeBoundsPass>();
-  return pass;
+  return std::make_unique<ComputeBoundsPass>();
 }
 
 }  // namespace pmlc::dialect::tile

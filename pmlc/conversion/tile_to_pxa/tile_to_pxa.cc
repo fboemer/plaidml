@@ -34,11 +34,13 @@ using dialect::tile::ContractionOpOperandAdaptor;
 using dialect::tile::IndexOp;
 using dialect::tile::ShapeOp;
 using dialect::tile::ShapeOpOperandAdaptor;
+using dialect::tile::TraceOp;
 using util::DataType;
 
 using llvm::Optional;
 using llvm::SmallVector;
 using mlir::AffineConstantExpr;
+using mlir::AffineIfOp;
 using mlir::AffineLoadOp;
 using mlir::AffineMap;
 using mlir::AffineMapAttr;
@@ -46,10 +48,12 @@ using mlir::AffineStoreOp;
 using mlir::AllocOp;
 using mlir::ArrayRef;
 using mlir::Attribute;
+using mlir::CallOp;
 using mlir::CmpFPredicate;
 using mlir::CmpIPredicate;
 using mlir::ConversionPattern;
 using mlir::ConversionPatternRewriter;
+using mlir::FlatSymbolRefAttr;
 using mlir::FloatAttr;
 using mlir::FloatType;
 using mlir::FuncOp;
@@ -59,6 +63,7 @@ using mlir::IntegerType;
 using mlir::Location;
 using mlir::MemRefType;
 using mlir::MLIRContext;
+using mlir::ModuleOp;
 using mlir::NamedAttribute;
 using mlir::OpBuilder;
 using mlir::OpConversionPattern;
@@ -68,6 +73,8 @@ using mlir::Pattern;
 using mlir::PatternMatchResult;
 using mlir::RankedTensorType;
 using mlir::ReturnOp;
+using mlir::StringAttr;
+using mlir::SymbolRefAttr;
 using mlir::Type;
 using mlir::Value;
 
@@ -101,7 +108,7 @@ ScalarType getScalarType(Type type) {
 }
 
 ScalarType getScalarType(Value value) {  //
-  return getScalarType(value->getType());
+  return getScalarType(value.getType());
 }
 
 struct FuncOpConversion : public OpConversionPattern<FuncOp> {
@@ -147,8 +154,7 @@ struct AffineConstantOpConversion : public OpConversionPattern<AffineConstantOp>
       ArrayRef<Value> operands,        //
       ConversionPatternRewriter& rewriter) const final {
     auto value = op.getValue().cast<IntegerAttr>().getInt();
-    auto newOp = rewriter.create<mlir::ConstantIndexOp>(op.getLoc(), value);
-    rewriter.replaceOp(op, {newOp});
+    rewriter.replaceOpWithNewOp<mlir::ConstantIndexOp>(op, value);
     return matchSuccess();
   }
 };
@@ -171,8 +177,7 @@ struct ScalarConstantOpConversion : public OpConversionPattern<ew::ScalarConstan
     } else {
       llvm_unreachable("Invalid scalar constant op");
     }
-    auto newOp = rewriter.create<mlir::ConstantOp>(op.getLoc(), stdType, value);
-    rewriter.replaceOp(op, {newOp});
+    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op, stdType, value);
     return matchSuccess();
   }
 };
@@ -420,6 +425,7 @@ struct EltwiseOpConversion : public OpConversionPattern<FromOpType> {
   using OpConversionPattern<FromOpType>::OpConversionPattern;
 
   PatternMatchResult match(Operation* op) const final {
+    IVLOG(2, "EltwiseOpConversion::match>");
     Matcher pred;
     return pred(op);
   }
@@ -430,14 +436,14 @@ struct EltwiseOpConversion : public OpConversionPattern<FromOpType> {
       ConversionPatternRewriter& rewriter) const final {
     TypeConverter typeConverter;
     auto loc = op.getLoc();
-    auto resultType = op.result()->getType();
+    auto resultType = op.result().getType();
     auto resultMemRefType = typeConverter.convertType(resultType).template cast<MemRefType>();
 
     // Allocate the result
     auto resultMemRef = rewriter.create<AllocOp>(loc, resultMemRefType).getResult();
 
     // Make a parallel for loop to fill the result
-    auto forOp = rewriter.create<pxa::AffineParallelForOp>(loc, resultMemRefType.getShape());
+    auto forOp = rewriter.create<pxa::AffineParallelOp>(loc, resultMemRefType.getShape());
     auto body = forOp.getBody();
     rewriter.setInsertionPointToStart(body);
     // TODO: Maybe fix ValueRange?
@@ -490,6 +496,7 @@ struct ContractionOpConversion : public OpConversionPattern<ContractionOp> {
   using OpConversionPattern<ContractionOp>::OpConversionPattern;
 
   PatternMatchResult match(Operation* op) const final {
+    IVLOG(2, "ContractionOpConversion::match>");
     if (auto cionOp = llvm::dyn_cast<ContractionOp>(op)) {
       if (cionOp.combo() != comboKind) {
         return matchFailure();
@@ -526,7 +533,7 @@ struct ContractionOpConversion : public OpConversionPattern<ContractionOp> {
     // Gather some basic info
     auto loc = op.getLoc();
     TypeConverter typeConverter;
-    auto resultType = typeConverter.convertType(op.result()->getType()).cast<MemRefType>();
+    auto resultType = typeConverter.convertType(op.result().getType()).cast<MemRefType>();
 
     // Make an allocation for the output
     auto resultMemRef = rewriter.create<AllocOp>(loc, resultType).getResult();
@@ -545,13 +552,20 @@ struct ContractionOpConversion : public OpConversionPattern<ContractionOp> {
     // TODO: addInitializer
 
     // Make the outer loops
-    auto forOp = rewriter.create<pxa::AffineParallelForOp>(loc, ranges);
+    auto forOp = rewriter.create<pxa::AffineParallelOp>(loc, ranges);
     auto body = forOp.getBody();
     rewriter.setInsertionPointToStart(body);
     // TODO: Maybe fix ValueRange?
     SmallVector<Value, 8> idxs;
     for (size_t i = 0; i < body->getNumArguments(); i++) {
       idxs.push_back(body->getArgument(i));
+    }
+
+    // add constraints
+    if (op.cons()) {
+      auto cons = op.cons().getValue();
+      auto ifOp = rewriter.create<AffineIfOp>(loc, cons, idxs, false);
+      rewriter.setInsertionPointToStart(&ifOp.thenRegion().front());
     }
 
     // Create the loads + casts
@@ -605,13 +619,13 @@ struct IndexOpConversion : public OpConversionPattern<IndexOp> {
     // Gather some basic info
     auto loc = op.getLoc();
     TypeConverter typeConverter;
-    auto resultType = typeConverter.convertType(op.result()->getType()).cast<MemRefType>();
+    auto resultType = typeConverter.convertType(op.result().getType()).cast<MemRefType>();
 
     // Make an allocation for the output
     auto resultMemRef = rewriter.create<AllocOp>(loc, resultType).getResult();
 
     // Make a parallel for loop to fill the result
-    auto forOp = rewriter.create<pxa::AffineParallelForOp>(loc, resultType.getShape());
+    auto forOp = rewriter.create<pxa::AffineParallelOp>(loc, resultType.getShape());
     auto body = forOp.getBody();
     rewriter.setInsertionPointToStart(body);
     // TODO: Maybe fix ValueRange?
@@ -652,7 +666,7 @@ struct ShapeOpConversion : public OpConversionPattern<ShapeOp> {
     // Gather some basic info
     auto loc = op.getLoc();
     TypeConverter typeConverter;
-    auto resultType = typeConverter.convertType(op.result()->getType()).cast<MemRefType>();
+    auto resultType = typeConverter.convertType(op.result().getType()).cast<MemRefType>();
 
     // Make an allocation for the output
     auto resultMemRef = rewriter.create<AllocOp>(loc, resultType).getResult();
@@ -686,7 +700,7 @@ struct CastOpConversion : public OpConversionPattern<ew::CastOp> {
     // Gather some basic info
     auto loc = op.getLoc();
     TypeConverter typeConverter;
-    auto resultType = typeConverter.convertType(op.result()->getType()).cast<MemRefType>();
+    auto resultType = typeConverter.convertType(op.result().getType()).cast<MemRefType>();
     auto operand = operands[0];
     auto operandType = operand.getType().cast<MemRefType>();
     if (resultType == operandType) {
@@ -698,7 +712,7 @@ struct CastOpConversion : public OpConversionPattern<ew::CastOp> {
     auto resultMemRef = rewriter.create<AllocOp>(loc, resultType).getResult();
 
     // Make a parallel for loop to fill the result
-    auto forOp = rewriter.create<pxa::AffineParallelForOp>(loc, resultType.getShape());
+    auto forOp = rewriter.create<pxa::AffineParallelOp>(loc, resultType.getShape());
     auto body = forOp.getBody();
     rewriter.setInsertionPointToStart(body);
     // TODO: Maybe fix ValueRange?
@@ -732,6 +746,7 @@ struct ReturnOpConversion : public OpConversionPattern<ReturnOp> {
       ReturnOp op,                     //
       ArrayRef<Value> operands,        //
       ConversionPatternRewriter& rewriter) const final {
+    IVLOG(2, "ReturnOpConversion::matchAndRewrite>");
     auto& block = op.getParentRegion()->front();
     auto funcOp = op.getParentOfType<FuncOp>();
     auto blockArg = funcOp.getType().getNumInputs() - op.getNumOperands();
@@ -743,6 +758,36 @@ struct ReturnOpConversion : public OpConversionPattern<ReturnOp> {
   }
 };
 
+struct TraceOpConversion : public OpConversionPattern<TraceOp> {
+  using OpConversionPattern<TraceOp>::OpConversionPattern;
+
+  PatternMatchResult matchAndRewrite(  //
+      TraceOp op,                      //
+      ArrayRef<Value> operands,        //
+      ConversionPatternRewriter& rewriter) const final {
+    auto module = op.getParentOfType<ModuleOp>();
+    auto symbol = createStubFunc(module, op.msgAttr());
+    rewriter.create<CallOp>(op.getLoc(), symbol, ArrayRef<Type>{});
+    rewriter.replaceOp(op, op.tensor());
+    return matchSuccess();
+  }
+
+  FlatSymbolRefAttr createStubFunc(ModuleOp module, StringAttr msg) const {
+    static unsigned idCounter = 0;
+    auto uniqueId = idCounter++;
+    auto symbol = llvm::formatv("__trace_{0}", uniqueId).str();
+    auto context = module.getContext();
+    OpBuilder builder(context);
+    builder.setInsertionPointToStart(module.getBody());
+    auto funcType = FunctionType::get({}, {}, context);
+    auto funcOp = builder.create<FuncOp>(module.getLoc(), symbol, funcType, ArrayRef<NamedAttribute>{});
+    funcOp.setAttr("msg", msg);
+    funcOp.setAttr("trace", builder.getUnitAttr());
+    funcOp.setAttr("id", builder.getI64IntegerAttr(uniqueId));
+    return SymbolRefAttr::get(symbol, context);
+  }
+};
+
 struct LoweringPass : public mlir::ModulePass<LoweringPass> {
   void runOnModule() final {
     // Set up target (i.e. what is legal)
@@ -751,11 +796,11 @@ struct LoweringPass : public mlir::ModulePass<LoweringPass> {
     target.addLegalDialect<mlir::StandardOpsDialect>();
     target.addLegalDialect<dialect::pxa::Dialect>();
     target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
-    target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
+    target.addDynamicallyLegalOp<FuncOp>([](FuncOp op) {
       auto funcType = op.getType();
       return funcType.getNumResults() == 0;
     });
-    target.addDynamicallyLegalOp<ReturnOp>([&](ReturnOp op) {  //
+    target.addDynamicallyLegalOp<ReturnOp>([](ReturnOp op) {  //
       return op.getNumOperands() == 0;
     });
 
@@ -770,9 +815,10 @@ struct LoweringPass : public mlir::ModulePass<LoweringPass> {
         CastOpConversion,            //
         FuncOpConversion,            //
         IndexOpConversion,           //
+        ReturnOpConversion,          //
         ScalarConstantOpConversion,  //
         ShapeOpConversion,           //
-        ReturnOpConversion,          //
+        TraceOpConversion,           //
         // TODO: PrngOpConversion
         // TODO: SpecialOpConversion (GatherOp, ReshapeOp, ScatterOp, ZeroOp)
         ContractionOpConversion<CombinationKind::none, FirstOperand>,
@@ -824,8 +870,6 @@ struct LoweringPass : public mlir::ModulePass<LoweringPass> {
 
     // Run the conversion
     if (failed(applyFullConversion(getModule(), target, patterns, nullptr))) {
-      getModule().dump();
-      emitError(mlir::UnknownLoc::get(&getContext()), "Error lowering tile -> pxa\n");
       signalPassFailure();
       return;
     }
@@ -840,6 +884,6 @@ std::unique_ptr<mlir::Pass> createLowerTileToPXAPass() {  //
 
 static mlir::PassRegistration<LoweringPass> legalize_pass(  //
     "convert-tile-to-pxa",                                  //
-    "Convert from Tile dialect to PXA dialect");
+    "Convert Tile dialect to PXA dialect");
 
 }  // namespace pmlc::conversion::tile_to_pxa

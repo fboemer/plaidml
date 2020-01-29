@@ -13,6 +13,7 @@
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Support/DebugStringHelper.h"
 #include "mlir/Target/LLVMIR.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -28,80 +29,6 @@ namespace pmlc::compiler {
 
 namespace {
 
-template <typename T, int N>
-struct StridedMemRefType {
-  T* basePtr;
-  T* data;
-  int64_t offset;
-  int64_t sizes[N];
-  int64_t strides[N];
-};
-
-template <typename StreamType, typename T, int N>
-void printMemRefMetaData(StreamType& os, StridedMemRefType<T, N>* memref) {  // NOLINT[runtime/references]
-  static_assert(N > 0, "Expected N > 0");
-  os << "Memref ptr: " << reinterpret_cast<void*>(memref);
-  os << " base: " << reinterpret_cast<void*>(memref->data);
-  os << " rank: " << N;
-  os << " offset: " << memref->offset;
-  os << " sizes: [";
-  for (unsigned i = 0; i < N; ++i) {
-    if (i) {
-      os << ", ";
-    }
-    os << memref->sizes[i];
-  }
-  os << "] strides: [";
-  for (unsigned i = 0; i < N; ++i) {
-    if (i) {
-      os << ", ";
-    }
-    os << memref->strides[i];
-  }
-  os << "]";
-}
-
-template <typename T, int N>
-void printMemRef(StridedMemRefType<T, N>* memref) {
-  static_assert(N > 0, "Expected N > 0");
-  printMemRefMetaData(std::cout, memref);
-  std::cout << std::endl;
-}
-
-class InjectTracingPass : public FunctionPass<InjectTracingPass> {
- public:
-  void runOnFunction() override {
-    auto funcOp = getFunction();
-    auto moduleOp = funcOp.getParentOfType<ModuleOp>();
-
-    OpBuilder builder(funcOp.getBody());
-    for (auto arg : funcOp.getArguments()) {
-      auto memRefType = arg->getType().cast<MemRefType>();
-      SmallVector<int64_t, 2> shape(memRefType.getRank(), MemRefType::kDynamicSize);
-      auto genericType = MemRefType::get(shape, memRefType.getElementType());
-      auto printRef = getOrInsertPrint(moduleOp, genericType);
-      auto castOp = builder.create<MemRefCastOp>(builder.getUnknownLoc(), genericType, arg);
-      builder.create<CallOp>(builder.getUnknownLoc(), printRef, ArrayRef<Type>{}, castOp.getResult());
-    }
-  }
-
-  static FlatSymbolRefAttr getOrInsertPrint(ModuleOp module, MemRefType memRefType) {
-    auto* context = module.getContext();
-    // TODO: select symbol name based on memRefType
-    const char* symbol = "print_memref_2d_f32";
-    if (module.lookupSymbol<FuncOp>(symbol)) {
-      return SymbolRefAttr::get(symbol, context);
-    }
-    OpBuilder builder(context);
-    builder.setInsertionPointToStart(module.getBody());
-    auto funcType = FunctionType::get(memRefType, {}, context);
-    builder.create<FuncOp>(module.getLoc(), symbol, funcType, ArrayRef<NamedAttribute>{});
-    return SymbolRefAttr::get(symbol, context);
-  }
-
-  static std::unique_ptr<Pass> create() { return std::make_unique<InjectTracingPass>(); }
-};
-
 using MemRefTypes = std::vector<MemRefType>;
 
 class ArgumentCollectorPass : public FunctionPass<ArgumentCollectorPass> {
@@ -111,7 +38,7 @@ class ArgumentCollectorPass : public FunctionPass<ArgumentCollectorPass> {
   void runOnFunction() override {
     auto funcOp = getFunction();
     for (auto arg : funcOp.getArguments()) {
-      into->emplace_back(arg->getType().cast<MemRefType>());
+      into->emplace_back(arg.getType().cast<MemRefType>());
     }
   }
 
@@ -122,10 +49,6 @@ class ArgumentCollectorPass : public FunctionPass<ArgumentCollectorPass> {
 };
 
 }  // namespace
-
-extern "C" void print_memref_2d_f32(StridedMemRefType<float, 2>* M) {  //
-  printMemRef(M);
-}
 
 class MemRefDescriptor {
  private:
@@ -182,9 +105,18 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
   OwningModuleRef module(copy);
   PassManager manager(module->getContext());
 
-  auto shouldPrintBeforePass = [](auto, auto) { return true; };
-  auto shouldPrintAfterPass = [](auto, auto) { return VLOG_IS_ON(3); };
+  auto shouldPrintBeforePass = [](auto pass, auto op) { return false; };
+  auto shouldPrintAfterPass = [&](auto pass, auto op) {
+    if (auto funcOp = llvm::dyn_cast<FuncOp>(op)) {
+      return VLOG_IS_ON(3) && funcOp.getName() == entry;
+    }
+    return VLOG_IS_ON(3);
+  };
   manager.enableIRPrinting(shouldPrintBeforePass, shouldPrintAfterPass, true, false, llvm::errs());
+  if (VLOG_IS_ON(1)) {
+    manager.enableStatistics();
+    manager.enableTiming();
+  }
 
   manager.addPass(dialect::tile::createComputeBoundsPass());
   manager.addNestedPass<FuncOp>(createCanonicalizerPass());
@@ -196,12 +128,9 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
 
   std::vector<MemRefType> memRefTypes;
   manager.addPass(ArgumentCollectorPass::create(&memRefTypes));
-  if (VLOG_IS_ON(6)) {
-    manager.addPass(InjectTracingPass::create());
-  }
 
   auto pipelineBuilder = resolveTarget(target);
-  pipelineBuilder(&manager);
+  pipelineBuilder(manager);
 
   if (failed(manager.run(*module))) {
     throw std::runtime_error("conversion to the LLVM IR dialect failed");
@@ -209,9 +138,19 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
 
   assert(memRefTypes.size() == bufptrs.size() && "memRefTypes and bufptrs size mismatch");
 
+  auto tmBuilderOrError = llvm::orc::JITTargetMachineBuilder::detectHost();
+  if (!tmBuilderOrError) {
+    throw std::runtime_error("Failed to create a JITTargetMachineBuilder for the host");
+  }
+
+  auto tmOrError = tmBuilderOrError->createTargetMachine();
+  if (!tmOrError) {
+    throw std::runtime_error("Failed to create a TargetMachine for the host");
+  }
+
   auto optPipeline = makeOptimizingTransformer(
       /*optLevel=*/0, /*sizeLevel=*/0,
-      /*targetMachine=*/nullptr);
+      /*targetMachine=*/tmOrError->get());
 
   // if (VLOG_IS_ON(6)) {
   auto llvmModule = translateModuleToLLVMIR(*module);
@@ -222,9 +161,8 @@ Executable::Executable(StringRef entry, StringRef target, ModuleOp programModule
   //}
 
   auto maybeEngine = ExecutionEngine::create(*module, optPipeline);
-  llvm::handleAllErrors(maybeEngine.takeError(), [](const llvm::ErrorInfoBase& b) {
-    b.log(llvm::errs());
-    throw std::runtime_error("Failed to create ExecutionEngine");
+  llvm::handleAllErrors(maybeEngine.takeError(), [](const llvm::ErrorInfoBase& err) {
+    throw std::runtime_error("Failed to create ExecutionEngine: " + err.message());
   });
   engine = std::move(*maybeEngine);
 
