@@ -18,13 +18,6 @@ exports_files([
     "ffi.h",
 ])
 
-pkg_tar(
-    name = "include_pkg",
-    srcs = SDK_HDRS,
-    package_dir = "include/plaidml/core",
-    visibility = ["//visibility:public"],
-)
-
 filegroup(
     name = "docs",
     srcs = ["core.h"],
@@ -66,12 +59,6 @@ plaidml_cc_library(
     alwayslink = 1,
 )
 
-plaidml_cc_library(
-    name = "api",
-    hdrs = SDK_HDRS,
-    visibility = ["//visibility:public"],
-)
-
 py_library(
     name = "py",
     srcs = [
@@ -85,6 +72,7 @@ py_library(
 py_test(
     name = "py_test",
     srcs = ["core_test.py"],
+    args = ["-v"],
     main = "core_test.py",
     deps = [
         ":py",
